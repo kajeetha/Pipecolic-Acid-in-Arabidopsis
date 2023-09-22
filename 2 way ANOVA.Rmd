@@ -1,0 +1,109 @@
+---
+title: "Pip"
+output: html_document
+---
+#Install packages ----
+
+```{r setup, include=FALSE}
+install.packages("car")
+install.packages("agricolae") 
+rm(list=ls()) #Clear the global environment (whenever you start a new analysis) ----
+```
+
+#Import your data ----
+#(import an excel spreadsheet saved in csv format) 
+
+```{r cars}
+setwd ("/Users/kajeethasarvananthan/Desktop") #set the working directory to wherever your file is located 
+mydata <- read.csv("mydata.csv", header=TRUE)
+```
+
+#Set the variables as factors or numeric ----
+
+```{r pressure, echo=FALSE}
+mydata$Treatment <- factor(mydata$Treatment)
+mydata$Plant <- factor(mydata$Plant)
+mydata$cfu <- as.numeric(mydata$cfu)
+```
+#ask for whatever type of basic output you'd like, for example... 
+```{r}
+print(mydata) 
+plot(mydata$Treatment,mydata$cfu) #can be useful for spotting outliers 
+plot(mydata$Plant,mydata$cfu)
+```
+#you can check the mean, standard deviation, number of entries etc
+```{r}
+tapply(mydata$cfu,mydata$Treatment,mean)
+tapply(mydata$cfu,mydata$Plant,mean)
+tapply(mydata$cfu,mydata$Treatment,sd)
+tapply(mydata$cfu,mydata$Plant,sd)
+tapply(mydata$cfu,mydata$Treatment,length)
+tapply(mydata$cfu,mydata$Plant,length)
+```
+#Run ANOVA ---- 
+#for 2 factor interaction, use colon VS for separate effects, use star
+```{r}
+my_anova_model = aov(cfu ~ Treatment:Plant, data=mydata) #the numeric variable must be first in this expression 
+summary(my_anova_model)#show results (NOTE: before interpreting the results you need to check that your data meet the assumptions of the model [if not, the results could be nonsense]) 
+```
+
+#ANOVA results significant if F<0.05
+
+#Test assumptions of the ANOVA model ----
+
+```{r}
+shapiro.test(mydata$cfu) #test for normality of the data (numeric variable), NOT IMPORTANT?
+                         #null hypothesis: data = normally distributed, thus should get p>0.05
+
+hist(mydata$cfu) #visual assessment of normality 
+
+shapiro.test(resid(my_anova_model)) #test for normality of the residuals, IMPORTANT
+                                #null hypothesis = normally distributed, thus should get p>0.05
+hist(resid(my_anova_model))
+
+plot(my_anova_model) #the first plot can be used to assess homoscedasticity of the residuals; you're hoping for a roughly equal distribution about zero (no fan shapes) 
+
+bartlett.test(cfu ~ Plant:Treatment, data=mydata) #ONLY 1-WAY ANOVA. test for homegeneity of variance
+                                                  #null hypothesis: homogeneity of variance
+                                                  #apparently test is sensitive to departures from normality and 
+```
+#Levene's test is better at dealing with this
+
+```{r}
+library(car) 
+leveneTest(cfu ~ Plant:Treatment, data=mydata) #test for homogeneity of variance 
+                              #null hypothesis: homogeneity of variance, thus should get p>0.05
+```
+#Post-hoc Tukey HSD test ----
+```{r}
+library(agricolae)                                                       
+TukeyHSD(my_anova_model) #gives p values but have to figure out the letter codes for yourself 
+print(HSD.test(my_anova_model, "mydata$treatment")) #ONLY 1-WAY ANOVA. gives letter codes but no p values
+options(max.print = 9000) #execute this if rows in output get ommitted due to long length, then re-execute TukeyHSD
+```
+#If tests were failed, log transform, then redo ANOVA and Tukey HSD ----
+#if your data fail to meet any of the assumptions, log transform it and create another ANOVA model using this new variable 
+```{r}
+mydata$logcfu = log10(mydata$cfu)
+mydata$logcfu <- as.numeric(mydata$logcfu)
+my_anova_model_2 = aov(logcfu ~ Treatment:Plant, data=mydata) #for 2 factor interaction, use colon VS for separate effects, use star
+summary(my_anova_model_2)
+```
+#test assumptions of the model 
+```{r}
+shapiro.test(mydata$logcfu)  
+hist(mydata$logcfu)
+shapiro.test(resid(my_anova_model_2))
+hist(resid(my_anova_model_2))
+plot(my_anova_model_2)
+
+leveneTest (logcfu ~ Treatment*Plant, data=mydata)
+```
+#if your data satisfy the assumptions & ANOVA returned a significant result, proceed to post-hoc testing
+```{r}
+library(agricolae)
+TukeyHSD(my_anova_model_2) #gives p values but have to figure out the letter codes for yourself 
+print(HSD.test(my_anova_model_2, "mydata$treatment")) #gives letter codes but no p values (only for one-way ANOVA)
+```
+
+
